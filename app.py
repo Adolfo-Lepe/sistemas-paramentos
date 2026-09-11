@@ -5,7 +5,7 @@ import numpy as np
 import plotly.express as px
 from sqlalchemy import create_engine, text
 from datetime import date
-from correios_rastreio import rastrear
+from correios import Correios
 
 # ==============================================================================
 # 1. CONEXÃO COM O BANCO DE DADOS (NEON POSTGRESQL)
