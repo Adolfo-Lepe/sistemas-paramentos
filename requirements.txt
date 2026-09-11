@@ -5,6 +5,6 @@ psycopg2-binary
 sqlalchemy
 tensorflow
 scikit-learn
-correios-rastreio
+correios
 beautifulsoup4
 requests
