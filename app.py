@@ -179,3 +179,28 @@ elif menu == "Atualizar Envio":
             with engine.connect() as conn:
                 conn.execute("UPDATE vendas SET status_envio = %s WHERE id = %s", (novo_status, dict_vendas[venda_sel]))
             st.success("Status de logística atualizado no Neon PostgreSQL!")
+
+from correios_rastreio import rastrear
+import streamlit as st
+import pandas as pd
+
+def consultar_status_correios(codigo_rastreio):
+    """
+    Busca o histórico de movimentação do pacote nos Correios.
+    Retorna o último status e a data/hora da última atualização.
+    """
+    if not codigo_rastreio or len(codigo_rastreio.strip()) < 13:
+        return "Código Inválido", "N/A"
+    
+    try:
+        resultado = rastrear(codigo_rastreio.strip())
+        if resultado and len(resultado) > 0:
+            # O primeiro item do resultado é o evento mais recente
+            ultimo_evento = resultado[0]
+            status_atual = ultimo_evento.get('status', 'Em Trânsito')
+            data_hora = f"{ultimo_evento.get('data', '')} {ultimo_evento.get('hora', '')}"
+            return status_atual, data_hora
+        else:
+            return "Objeto não encontrado", "N/A"
+    except Exception as e:
+        return "Erro na consulta", "N/A"
