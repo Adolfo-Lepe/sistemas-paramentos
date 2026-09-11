@@ -5,7 +5,7 @@ import numpy as np
 import plotly.express as px
 from sqlalchemy import create_engine, text
 from datetime import date
-from correios import Correios
+import requests
 
 # ==============================================================================
 # 1. CONEXÃO COM O BANCO DE DADOS (NEON POSTGRESQL)
@@ -22,23 +22,29 @@ def get_engine():
 engine = get_engine()
 
 # ==============================================================================
-# 2. FUNÇÃO DE CONSULTA DOS CORREIOS
+# 2. FUNÇÃO DE CONSULTA DOS CORREIOS (API HTTP DIRECT)
 # ==============================================================================
 def consultar_status_correios(codigo_rastreio):
-    """Busca o último evento registrado no site dos Correios."""
-    if not codigo_rastreio or len(str(codigo_rastreio).strip()) < 13:
+    """Busca o evento de rastreio utilizando requisição HTTP direta."""
+    cod = str(codigo_rastreio).strip().upper()
+    if not cod or len(cod) < 13:
         return "Código Inválido", "N/A"
     
     try:
-        c = Correios()
-        resultado = c.encomenda(str(codigo_rastreio).strip())
-        if resultado and len(resultado) > 0:
-            ultimo_evento = resultado[0]
-            status_atual = getattr(ultimo_evento, 'status', 'Em Trânsito')
-            data_hora = getattr(ultimo_evento, 'data', 'N/A')
-            return status_atual, data_hora
-        else:
-            return "Objeto não encontrado", "N/A"
+        # API pública alternativa para rastreamento dos Correios
+        url = f"https://api.linketrack.com/track/json?user=teste&token=1abcd00b2731640e16ae3d4b1697508039a5c88e&codigo={cod}"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            dados = response.json()
+            eventos = dados.get('eventos', [])
+            if eventos:
+                ultimo = eventos[0]
+                status = ultimo.get('status', 'Em Trânsito')
+                data_hora = f"{ultimo.get('data', '')} {ultimo.get('hora', '')}".strip()
+                return status, data_hora
+            return "Aguardando Postagem", "N/A"
+        return "Objeto não encontrado", "N/A"
     except Exception:
         return "Erro na consulta", "N/A"
 
@@ -135,7 +141,6 @@ elif menu == "Registrar Venda":
 elif menu == "Atualizar Envio":
     st.header("🚚 Logística & Rastreamento Correios")
     
-    # 1. Formulário para vincular Código de Rastreio
     st.subheader("📌 Cadastrar Código de Rastreio")
     df_vendas = pd.read_sql('''
         SELECT v.id, c.nome, v.produto, v.codigo_rastreio, v.status_envio 
@@ -160,7 +165,6 @@ elif menu == "Atualizar Envio":
 
         st.divider()
 
-        # 2. Atualização Automática
         st.subheader("🔄 Rastreamento Automático em Lote")
         df_para_rastrear = df_vendas[
             df_vendas['codigo_rastreio'].notnull() & 
