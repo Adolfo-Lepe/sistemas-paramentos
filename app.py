@@ -6,23 +6,52 @@ import plotly.express as px
 from sqlalchemy import create_engine, text
 from datetime import date
 import requests
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 # ==============================================================================
-# 1. CONEXÃO COM O BANCO DE DADOS (NEON POSTGRESQL)
+# 1. CONEXÃO COM O BANCO DE DADOS (NEON POSTGRESQL) - TRATAMENTO DE URL
 # ==============================================================================
-DATABASE_URL = os.environ.get("DATABASE_URL") or st.secrets.get("DATABASE_URL")
+raw_url = os.environ.get("DATABASE_URL") or ""
+
+if not raw_url:
+    try:
+        raw_url = st.secrets.get("DATABASE_URL", "")
+    except Exception:
+        raw_url = ""
 
 @st.cache_resource
 def get_engine():
-    url = DATABASE_URL
-    if url and url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
-    return create_engine(url)
+    if not raw_url:
+        st.error("❌ A variável DATABASE_URL não foi encontrada. Configure-a no Render em Environment.")
+        st.stop()
+    
+    # Limpa espaços em branco e aspas acidentais
+    cleaned_url = raw_url.strip().strip("'").strip('"')
+    
+    # Corrige o dialect de postgres:// para postgresql://
+    if cleaned_url.startswith("postgres://"):
+        cleaned_url = cleaned_url.replace("postgres://", "postgresql://", 1)
+        
+    # Remove parametros de SSL problemáticos para o SQLAlchemy
+    if "?" in cleaned_url:
+        base_part, query_part = cleaned_url.split("?", 1)
+        params = parse_qs(query_part)
+        # Mantem apenas sslmode se existir
+        new_params = {}
+        if 'sslmode' in params:
+            new_params['sslmode'] = params['sslmode']
+        else:
+            new_params['sslmode'] = 'require'
+        cleaned_url = f"{base_part}?{urlencode(new_params, doseq=True)}"
+    else:
+        cleaned_url = f"{cleaned_url}?sslmode=require"
+        
+    return create_engine(cleaned_url, pool_pre_ping=True)
 
 engine = get_engine()
 
 # ==============================================================================
-# 2. FUNÇÃO DE CONSULTA DOS CORREIOS (API HTTP DIRECT)
+# 2. FUNÇÃO DE CONSULTA DOS CORREIOS (API LINKETRACK)
 # ==============================================================================
 def consultar_status_correios(codigo_rastreio):
     """Busca o evento de rastreio utilizando requisição HTTP direta."""
@@ -31,7 +60,6 @@ def consultar_status_correios(codigo_rastreio):
         return "Código Inválido", "N/A"
     
     try:
-        # API pública alternativa para rastreamento dos Correios
         url = f"https://api.linketrack.com/track/json?user=teste&token=1abcd00b2731640e16ae3d4b1697508039a5c88e&codigo={cod}"
         response = requests.get(url, timeout=10)
         
