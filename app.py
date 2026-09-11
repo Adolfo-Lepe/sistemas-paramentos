@@ -9,44 +9,44 @@ import requests
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 # ==============================================================================
-# 1. CONEXÃO COM O BANCO DE DADOS (NEON POSTGRESQL) - TRATAMENTO DE URL
+# 1. CONEXÃO COM O BANCO DE DADOS - NEON POSTGRESQL
 # ==============================================================================
-raw_url = os.environ.get("DATABASE_URL") or ""
-
-if not raw_url:
-    try:
-        raw_url = st.secrets.get("DATABASE_URL", "")
-    except Exception:
-        raw_url = ""
 
 @st.cache_resource
 def get_engine():
+    raw_url = os.environ.get("DATABASE_URL")
+
     if not raw_url:
-        st.error("❌ A variável DATABASE_URL não foi encontrada. Configure-a no Render em Environment.")
+        try:
+            raw_url = st.secrets.get("DATABASE_URL")
+        except Exception:
+            raw_url = None
+
+    if not raw_url:
+        st.error("❌ DATABASE_URL não foi encontrada no Render.")
         st.stop()
-    
-    # Limpa espaços em branco e aspas acidentais
-    cleaned_url = raw_url.strip().strip("'").strip('"')
-    
-    # Corrige o dialect de postgres:// para postgresql://
-    if cleaned_url.startswith("postgres://"):
-        cleaned_url = cleaned_url.replace("postgres://", "postgresql://", 1)
-        
-    # Remove parametros de SSL problemáticos para o SQLAlchemy
-    if "?" in cleaned_url:
-        base_part, query_part = cleaned_url.split("?", 1)
-        params = parse_qs(query_part)
-        # Mantem apenas sslmode se existir
-        new_params = {}
-        if 'sslmode' in params:
-            new_params['sslmode'] = params['sslmode']
-        else:
-            new_params['sslmode'] = 'require'
-        cleaned_url = f"{base_part}?{urlencode(new_params, doseq=True)}"
-    else:
-        cleaned_url = f"{cleaned_url}?sslmode=require"
-        
-    return create_engine(cleaned_url, pool_pre_ping=True)
+
+    # Limpa espaços e aspas acidentais
+    database_url = raw_url.strip().strip("'").strip('"')
+
+    # Compatibilidade com URLs antigas do Render
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace(
+            "postgres://",
+            "postgresql://",
+            1
+        )
+
+    # Diagnóstico seguro: mostra somente o início da URL
+    st.write(
+        "Banco configurado:",
+        database_url.split("@")[0].split(":")[0] + "://***"
+    )
+
+    return create_engine(
+        database_url,
+        pool_pre_ping=True
+    )
 
 engine = get_engine()
 
