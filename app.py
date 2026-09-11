@@ -30,15 +30,16 @@ def consultar_status_correios(codigo_rastreio):
         return "Código Inválido", "N/A"
     
     try:
-        resultado = rastrear(str(codigo_rastreio).strip())
+        c = Correios()
+        resultado = c.encomenda(str(codigo_rastreio).strip())
         if resultado and len(resultado) > 0:
             ultimo_evento = resultado[0]
-            status_atual = ultimo_evento.get('status', 'Em Trânsito')
-            data_hora = f"{ultimo_evento.get('data', '')} {ultimo_evento.get('hora', '')}"
+            status_atual = getattr(ultimo_evento, 'status', 'Em Trânsito')
+            data_hora = getattr(ultimo_evento, 'data', 'N/A')
             return status_atual, data_hora
         else:
             return "Objeto não encontrado", "N/A"
-    except Exception as e:
+    except Exception:
         return "Erro na consulta", "N/A"
 
 # ==============================================================================
